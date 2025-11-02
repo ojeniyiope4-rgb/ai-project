@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Emotion Recognition Demo</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 2rem auto; }
+    #video { border: 1px solid #ccc; width: 480px; height: 360px; background: #000; }
+    #canvas { display:none; }
+    .btn { padding: 8px 12px; margin: 6px; cursor: pointer; }
+    .result { margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h2>Emotion Recognition</h2>
+
+  <section>
+    <h3>Upload an image</h3>
+    <form id="uploadForm">
+      <input type="file" name="image" id="fileInput" accept="image/*" />
+      <button type="submit" class="btn">Upload & Analyze</button>
+      <label><input type="checkbox" id="saveCollected" /> Save uploaded image to collected dataset</label>
+    </form>
+  </section>
+
+  <section>
+    <h3>Or use your webcam</h3>
+    <video id="video" autoplay></video>
+    <br/>
+    <button id="snapBtn" class="btn">Capture & Analyze</button>
+    <label><input type="checkbox" id="saveWebcam" /> Save captured image to collected dataset</label>
+    <canvas id="canvas" width="480" height="360"></canvas>
+  </section>
+
+  <section class="result">
+    <h3>Results</h3>
+    <pre id="results">No results yet.</pre>
+  </section>
+
+<script>
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const snapBtn = document.getElementById('snapBtn');
+  const resultsEl = document.getElementById('results');
+
+  navigator.mediaDevices.getUserMedia({ video: true })
+    .then(stream => { video.srcObject = stream; })
+    .catch(err => { console.error("Camera error:", err); resultsEl.textContent = "Couldn't access camera."; });
+
+  snapBtn.onclick = async () => {
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg');
+    const save = document.getElementById('saveWebcam').checked;
+    resultsEl.textContent = "Analyzing...";
+    const resp = await fetch('/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64: dataUrl, save_collected: save })
+    });
+    const j = await resp.json();
+    resultsEl.textContent = JSON.stringify(j, null, 2);
+  };
+
+  document.getElementById('uploadForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const f = document.getElementById('fileInput').files[0];
+    if (!f) { alert('Pick a file'); return; }
+    const form = new FormData();
+    form.append('image', f);
+    form.append('save_collected', document.getElementById('saveCollected').checked ? 'true' : 'false');
+    resultsEl.textContent = "Analyzing...";
+    const resp = await fetch('/predict', { method: 'POST', body: form });
+    const j = await resp.json();
+    resultsEl.textContent = JSON.stringify(j, null, 2);
+  };
+</script>
+
+</body>
+</html>
